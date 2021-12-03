@@ -1078,4 +1078,63 @@ raise result.binary.to_s if result.binary != 101
 raise result.decimal.to_s if result.decimal != 5
 
 power = gamma.process(input).decimal * epsilon.process(input).decimal
-puts power
+# puts power
+
+# part 2
+
+class OxygenGeneratorRatingCalculator
+    def process(lines)
+        raise unless lines.is_a?(Array)
+        line_length = lines[0].length
+        raise if lines.any? { |line| line.length != line_length }
+
+        (0...line_length).each do |i|
+            zeros = lines.map { |line| line[i] }.select { |digit| digit == "0" }.size
+            ones = lines.map { |line| line[i] }.select { |digit| digit == "1" }.size
+            key_digit = (zeros > ones ? "0" : "1")
+            lines = lines.select { |line| line[i] == key_digit }
+            break if lines.length == 1
+        end
+        CalculatorResult.new(lines.first)
+    end
+end
+
+
+class CO2ScrubberRatingCalculator
+    def process(lines)
+        raise unless lines.is_a?(Array)
+        line_length = lines[0].length
+        raise if lines.any? { |line| line.length != line_length }
+
+        (0...line_length).each do |i|
+            # puts "index #{i} has #{lines.length} lines #{lines}"
+            zeros = lines.map { |line| line[i] }.select { |digit| digit == "0" }.size
+            ones = lines.map { |line| line[i] }.select { |digit| digit == "1" }.size
+            key_digit = (zeros <= ones ? "0" : "1")
+            lines = lines.select { |line| line[i] == key_digit }
+            break if lines.length == 1
+        end
+        CalculatorResult.new(lines.first)
+    end
+end
+
+oxygen = OxygenGeneratorRatingCalculator.new
+result = oxygen.process(["101"])
+raise result.binary.to_s if result.binary != 101
+
+result = oxygen.process(["101", "101"])
+raise result.binary.to_s if result.binary != 101
+
+result = oxygen.process(["101", "111", "011"])
+raise result.binary.to_s if result.binary != 111
+
+data = %w[00100 11110 10110 10111 10101 01111 00111 11100 10000 11001 00010 01010]
+result = oxygen.process(data)
+raise result.binary.to_s if result.binary != 10111
+
+co2 = CO2ScrubberRatingCalculator.new
+data = %w[00100 11110 10110 10111 10101 01111 00111 11100 10000 11001 00010 01010]
+result = co2.process(data)
+raise result.binary.to_s if result.binary != 1010
+
+puts life_support_rating = oxygen.process(input).decimal * co2.process(input).decimal
