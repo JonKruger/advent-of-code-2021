@@ -2,6 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     coderay (1.1.3)
+    diff-lcs (1.4.4)
     ffi (1.15.4)
     formatador (0.3.0)
     guard (2.18.0)
@@ -14,6 +15,10 @@ GEM
       shellany (~> 0.0)
       thor (>= 0.18.1)
     guard-compat (1.2.1)
+    guard-rspec (4.7.3)
+      guard (~> 2.1)
+      guard-compat (~> 1.1)
+      rspec (>= 2.99.0, < 4.0)
     guard-shell (0.7.2)
       guard (>= 2.0.0)
       guard-compat (~> 1.0)
@@ -32,6 +37,19 @@ GEM
     rb-fsevent (0.11.0)
     rb-inotify (0.10.1)
       ffi (~> 1.0)
+    rspec (3.10.0)
+      rspec-core (~> 3.10.0)
+      rspec-expectations (~> 3.10.0)
+      rspec-mocks (~> 3.10.0)
+    rspec-core (3.10.1)
+      rspec-support (~> 3.10.0)
+    rspec-expectations (3.10.1)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.10.0)
+    rspec-mocks (3.10.2)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.10.0)
+    rspec-support (3.10.3)
     shellany (0.0.1)
     thor (1.1.0)
 
@@ -40,7 +58,9 @@ PLATFORMS
 
 DEPENDENCIES
   guard
+  guard-rspec
   guard-shell
+  rspec
 
 RUBY VERSION
    ruby 2.7.1p83

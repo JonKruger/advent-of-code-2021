@@ -4,3 +4,5 @@ ruby "2.7.1"
 
 gem 'guard'
 gem 'guard-shell'
+gem 'rspec'
+gem 'guard-rspec'
