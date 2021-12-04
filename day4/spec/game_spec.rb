@@ -49,13 +49,13 @@ describe Game do
   context "winner" do
     let(:numbers_to_draw) { [24, 75, 59, 41, 17] }
 
-    it "should return nil if no winner" do
-      expect(subject.winner).to be_nil
+    it "should return empty if no winner" do
+      expect(subject.winners).to be_empty
     end
 
     it "should identify a winning board" do
       5.times { subject.draw }
-      expect(subject.winner).to eq(boards[0])
+      expect(subject.winners).to eq([boards[0]])
     end
   end
 
@@ -63,20 +63,43 @@ describe Game do
     let(:numbers_to_draw) { [24, 75, 59, 41, 17] }
     it "should draw until a winner is found" do
       subject.draw_until_winner
-      expect(subject.winner).to eq(boards[0])
+      expect(subject.winners).to eq([boards[0]])
     end
   end
 
-  context "final_score" do
+  context "draw_until_all_win" do
+    let(:numbers_to_draw) { [24, 75, 59, 41, 17, 21, 31, 36, 13, 87] }
+    it "should draw until all win" do
+      subject.draw_until_all_win
+      boards.each { |board| expect(subject.winners).to include(board) }
+      expect(subject.winners.size).to eq(boards.size)
+    end
+  end
+
+  context "final_score_of_first_winner" do
     let(:numbers_to_draw) { [24, 75, 59, 41, 17] }
     let(:unmarked_numbers) { %w[58 74 64 92 39 68  8 78 85 72 18  3 22  4 34 11 76  6 28 50].map(&:to_i) }
     it "should equal sum of winning board * last number" do
       5.times { subject.draw }
-      expect(subject.final_score).to eq(unmarked_numbers.sum * 17)
+      expect(subject.final_score_of_first_winner).to eq(unmarked_numbers.sum * 17)
     end
 
     it "should return nil if no winner yet" do
-      expect(subject.final_score).to be_nil
+      expect(subject.final_score_of_first_winner).to be_nil
+    end
+  end
+
+  context "final_score_of_last_winner" do
+    let(:numbers_to_draw) { [21, 31, 36, 13, 87, 24, 75, 59, 41, 17] }
+    let(:unmarked_numbers) { %w[58 74 64 92 39 68  8 78 85 72 18  3 22  4 34 11 76  6 28 50].map(&:to_i) }
+
+    it "should equal sum of winning board * last number" do
+      subject.draw_until_all_win
+      expect(subject.final_score_of_last_winner).to eq(unmarked_numbers.sum * 17)
+    end
+
+    it "should return nil if no winner yet" do
+      expect(subject.final_score_of_last_winner).to be_nil
     end
   end
 end
