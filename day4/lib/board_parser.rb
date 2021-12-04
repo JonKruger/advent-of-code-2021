@@ -3,12 +3,12 @@ class BoardParser
     split_board_inputs(input).map { |input| parse_single_board(input) }
   end
 
+  private
+
   def parse_single_board(input_array)
     rows = input_array.map { |row| row.split(" ").compact.map(&:to_i) }
     Board.new(rows)
   end
-
-  private
 
   def split_board_inputs(input)
     board_inputs = []
