@@ -99,6 +99,6 @@ RSpec.configure do |config|
 =end
 
   project_root = File.dirname(File.absolute_path(__FILE__)) + '/..'
-  Dir.glob(project_root + '/*.rb', &method(:require))
+  Dir.glob(project_root + '/lib/**/*.rb', &method(:require))
   Dir.glob(project_root + '/spec/**/*helper.rb', &method(:require))
 end
