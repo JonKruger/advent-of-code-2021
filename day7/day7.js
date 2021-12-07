@@ -2,6 +2,10 @@ const range = (min, max) => {
     return Array.from({length: max - min + 1}, (v, k)=> k + min);
 }
 
+const sumTo = (value) => {
+    return (value * (value + 1)) / 2;
+}
+
 const processInputPart1 = async (input) => {
     const min = Math.min(...input);
     const max = Math.max(...input);
@@ -32,10 +36,7 @@ const processInputPart2 = async (input) => {
     for (position of range(min, max)) {
         promise = new Promise((resolve) => {
             fuel_costs = input
-                .map((current_location) => {
-                    const distance = Math.abs(current_location - position);
-                    return range(1, distance).reduce((total_fuel, distance) => total_fuel += distance, 0);
-                })
+                .map((current_location) => sumTo(Math.abs(current_location - position)))
             total_fuel_cost = fuel_costs.reduce((sum, value) => sum += value, 0)
             result = {position, total_fuel_cost}
             resolve(result)
