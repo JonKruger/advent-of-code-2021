@@ -24,48 +24,29 @@ def part2(input_line)
   eight = digit_strings.select { |s| s.size == 7 }.first
 
   # figure out the rest by comparing common segments with known numbers
-  zero_candidates = digit_strings.select do |s|
-    s.size == 6 &&
-      in_common(s, four).size == 3 &&
-      in_common(s, seven).size == 3
-  end
-  raise if zero_candidates.size != 1
-  zero = zero_candidates[0]
+  zero = digit_strings.select do |s|
+    s.size == 6 && in_common(s, four).size == 3 && in_common(s, seven).size == 3
+  end.first
 
-  two_candidates = digit_strings.select do |s|
-    s.size == 5 &&
-      in_common(s, four).size == 2
-  end
-  raise if two_candidates.size != 1
-  two = two_candidates[0]
+  two = digit_strings.select do |s|
+    s.size == 5 && in_common(s, four).size == 2
+  end.first
 
-  five_candidates = digit_strings.select do |s|
-    s.size == 5 &&
-      s != two &&
-      in_common(s, seven).size == 2
-  end
-  raise if five_candidates.size != 1
-  five = five_candidates[0]
+  five = digit_strings.select do |s|
+    s.size == 5 && s != two && in_common(s, seven).size == 2
+  end.first
 
-  three_candidates = digit_strings.select do |s|
+  three = digit_strings.select do |s|
     s.size == 5 && ![two, five].include?(s)
-  end
-  raise if three_candidates.size != 1
-  three = three_candidates[0]
+  end.first
 
-  nine_candidates = digit_strings.select do |s|
-    s.size == 6 &&
-      in_common(s, one).size == 2 &&
-      in_common(s, five).size == 5
-  end
-  raise if nine_candidates.size != 1
-  nine = nine_candidates[0]
+  nine = digit_strings.select do |s|
+    s.size == 6 && in_common(s, one).size == 2 && in_common(s, five).size == 5
+  end.first
 
-  six_candidates = digit_strings.select do |s|
+  six = digit_strings.select do |s|
     s.size == 6 && ![zero, nine].include?(s)
-  end
-  raise six_candidates.inspect if six_candidates.size != 1
-  six = six_candidates[0]
+  end.first
 
   decoded_digits = [zero, one, two, three, four, five, six, seven, eight, nine]
   input_strings.map { |s| decoded_digits.index(s).to_s }.join.to_i
@@ -80,6 +61,8 @@ raise result.inspect unless result == 3
 result = part1("dagebf bdc bc afecd daceb cgbe dabceg edbag dfcagb cefgbad | dbc dabge abdgce cegb")
 raise result.inspect unless result == 2
 
+# technically I should've written more tests than this that cover all input numbers
+# but I got lucky and got it right anyway
 result = part2("acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab | cdfeb fcadb cdfeb cdbaf")
 raise result.inspect unless result == 5353
 
