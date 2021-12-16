@@ -140,7 +140,7 @@ class PathNavigator
     # for each node, find the path ending at that node with the lowest risk prune the rest
     @paths = @paths.group_by(&:current_node).map { |_, paths| paths.sort_by(&:total_risk).first }
 
-    pruning_limit = 100
+    pruning_limit = 1000
     if @paths.size > pruning_limit
       @paths = @paths.sort_by(&:pruning_score)[0...pruning_limit] + [best_completed_path].compact
     end
@@ -193,6 +193,34 @@ def build_nodes(input)
   rows
 end
 
+def create_part2_input(input)
+  top_row = create_part2_input_row(input)
+  bottommost_row = top_row
+  rows = [top_row] + 4.times.collect do
+    bottommost_row = add_1_to_input(bottommost_row)
+  end
+  rows.join("\n")
+end
+
+def create_part2_input_row(left_input_block)
+  input_block_to_copy = left_input_block
+  input_blocks = [left_input_block] + 4.times.collect do
+    input_block_to_copy = add_1_to_input(input_block_to_copy)
+  end
+
+  blocks_with_rows = input_blocks.map { |block| block.split("\n").compact }
+  joined_rows = []
+  (0...blocks_with_rows[0].size).each do |row|
+    joined_rows << blocks_with_rows.map { |block| block[row] }.join
+  end
+
+  joined_rows.join("\n")
+end
+
+def add_1_to_input(input)
+  input.split("\n").compact.map { |row| row.chars.compact.map(&:to_i).map { |value| (value == 9 ? 1 : value + 1).to_s }.join }.join("\n")
+end
+
 def lowest_risk(input)
   start = Time.now
 
@@ -202,7 +230,6 @@ def lowest_risk(input)
   navigator.create_straightest_path(grid[0][0])
 
   step_count = 0
-  max_steps = 2
   last_step_time = Time.now
   while (navigator.continue?) do
     navigator.step
@@ -220,6 +247,14 @@ test_input = <<-INPUT
 158
 213
 INPUT
+
+result = create_part2_input_row(test_input)
+expected_result = <<-INPUT
+116227338449551
+158269371482593
+213324435546657
+INPUT
+raise result.inspect if result.strip != expected_result.strip
 
 result = lowest_risk(test_input)
 raise result.inspect if result != 7
@@ -240,4 +275,6 @@ result = lowest_risk(test_input)
 raise result.inspect if result != 40
 
 input = File.read("input.txt")
+part_2_input = create_part2_input(input)
 puts("step 1 - #{lowest_risk(input)}")
+puts("step 2 - #{lowest_risk(part_2_input)}")
