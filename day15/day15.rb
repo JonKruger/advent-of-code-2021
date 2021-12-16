@@ -239,6 +239,12 @@ def lowest_risk(input)
   end
 
   puts("calculated lowest risk #{navigator.total_risk} in #{(Time.now - start)} seconds with #{step_count} steps")
+
+  # print the winning path
+  grid.each do |row|
+    puts(row.map { |node| navigator.best_completed_path.nodes.include?(node) ? node.risk_level.to_s : "." }.join)
+  end
+
   navigator.total_risk
 end
 
@@ -278,3 +284,9 @@ input = File.read("input.txt")
 part_2_input = create_part2_input(input)
 puts("step 1 - #{lowest_risk(input)}")
 puts("step 2 - #{lowest_risk(part_2_input)}")
+
+maze_input = File.read("maze_input.txt")
+expected_result = maze_input.chars.tally["1"]
+result = lowest_risk(maze_input)
+puts expected_result
+raise result.inspect if result != expected_result
