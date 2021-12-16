@@ -121,30 +121,29 @@ class PathNavigator
   end
 
   def step
-    new_paths = paths.map { |path| path.next_step_paths }.flatten
-    @paths = prune(new_paths)
+    @paths = paths.map { |path| path.next_step_paths }.flatten
+    prune
     nil
   end
 
-  def prune(paths)
+  def prune
     # prune paths that can't go anywhere
-    paths = paths.select { |path| !path.stuck? }
+    @paths = @paths.select { |path| !path.stuck? }
 
     # prune completed paths that aren't the best, along with incomplete paths that
     # are already worse than the best completed path
-    best_completed_path = paths.select { |path| path.completed? }.sort_by(&:total_risk).first
+    best_completed_path = @paths.select { |path| path.completed? }.sort_by(&:total_risk).first
     if best_completed_path
-      paths = paths.select { |path| !path.completed? && path.total_risk < best_completed_path.total_risk } + [best_completed_path].compact
+      @paths = @paths.select { |path| !path.completed? && path.total_risk < best_completed_path.total_risk } + [best_completed_path].compact
     end
 
     # for each node, find the path ending at that node with the lowest risk prune the rest
-    paths = paths.group_by(&:current_node).map { |_, paths| paths.sort_by(&:total_risk).first }
+    @paths = @paths.group_by(&:current_node).map { |_, paths| paths.sort_by(&:total_risk).first }
 
     pruning_limit = 100
-    if paths.size > pruning_limit
-      paths = paths.sort_by(&:pruning_score)[0...pruning_limit] + [best_completed_path].compact
+    if @paths.size > pruning_limit
+      @paths = @paths.sort_by(&:pruning_score)[0...pruning_limit] + [best_completed_path].compact
     end
-    paths
   end
 
   def continue?
@@ -161,10 +160,6 @@ class PathNavigator
 
   def best_completed_path
     completed_paths.sort_by(&:total_risk).first
-  end
-
-  def losing_completed_paths
-    completed_paths - [best_completed_path]
   end
 
   def percent_completed
@@ -214,11 +209,6 @@ def lowest_risk(input)
     step_count += 1
     puts("step #{step_count} - #{navigator.paths.size} paths (#{Time.now - last_step_time} seconds) - #{navigator.percent_completed * 100}% complete")
     last_step_time = Time.now
-
-    # if step_count > max_steps
-    #   puts("Stopping at #{max_steps} steps (#{navigator.percent_completed} completed)")
-    #   break
-    # end
   end
 
   puts("calculated lowest risk #{navigator.total_risk} in #{(Time.now - start)} seconds with #{step_count} steps")
