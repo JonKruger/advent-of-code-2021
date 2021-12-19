@@ -21,10 +21,18 @@ class Node
   end
 
   def explodable
-    if children.all? { |child| child.value && depth == 4 }
+    if value.nil? && children.all? { |child| child.value && depth == 4 }
       [self]
     else
-      children.select { |child| child.value.nil? }.map(&:explodable).flatten.compact
+      children.map(&:explodable).flatten.compact
+    end
+  end
+
+  def splittable
+    if value && value >= 10
+      [self]
+    else
+      children.map(&:splittable).flatten.compact
     end
   end
 
@@ -76,8 +84,11 @@ def to_root_node(array)
 end
 
 def reduce(array)
+  # puts("start #{array.inspect}")
   root_node = to_root_node(array)
-  explode(root_node)
+  while (explode(root_node) || split(root_node)) do
+    # puts(root_node.to_array.inspect)
+  end
   root_node.to_array
 end
 
@@ -89,6 +100,7 @@ end
 def explode(node)
   # If any pair is nested inside four pairs, the leftmost such pair explodes.
   explodable = node.explodable.first
+  return false unless explodable
 
   # To explode a pair,
   #
@@ -105,6 +117,27 @@ def explode(node)
 
   # Then, the entire exploding pair is replaced with the regular number 0.
   explodable.parent.children = explodable.parent.children.map { |child| child == explodable ? Node.new(0, explodable.parent) : child }
+
+  true
+end
+
+def split(node)
+  # If any regular number is 10 or greater, the leftmost such regular number splits.
+  splittable = node.splittable.first
+  return false unless splittable
+
+  # To split a regular number, replace it with a pair; the left element of the pair should be the regular number
+  # divided by two and rounded down, while the right element of the pair should be the regular number divided by
+  # two and rounded up. For example, 10 becomes [5,5], 11 becomes [5,6], 12 becomes [6,6], and so on.
+  split_node = Node.new
+  split_node.parent = splittable.parent
+  split_node.children = [
+    Node.new((splittable.value.to_f / 2).floor, splittable.parent),
+    Node.new((splittable.value.to_f / 2).ceil, splittable.parent)
+  ]
+  splittable.parent.children = splittable.parent.children.map { |child| child == splittable ? split_node : child }
+
+  true
 end
 
 # Node#to_array
@@ -146,6 +179,7 @@ raise result.inspect unless result == [[[[0,9]]]]
 result = reduce([[[[7,[1,2]]]]])
 raise result.inspect unless result == [[[[8,0]]]]
 
+# exploding test cases
 result = reduce([[[[[9,8],1],2],3],4])
 raise result.inspect unless result == [[[[0,9],2],3],4]
 
@@ -156,7 +190,12 @@ result = reduce([[6,[5,[4,[3,2]]]],1])
 raise result.inspect unless result == [[6,[5,[7,0]]],3]
 
 result = reduce([[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]])
-raise result.inspect unless result == [[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]
-
-result = reduce([[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]])
 raise result.inspect unless result == [[3,[2,[8,0]]],[9,[5,[7,0]]]]
+
+# splitting
+result = reduce([15,1])
+raise result.inspect unless result == [[7,8],1]
+
+# exploding and splitting together
+result = reduce([[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]])
+raise result.inspect unless result == [[[[0,7],4],[[7,8],[6,0]]],[8,1]]
