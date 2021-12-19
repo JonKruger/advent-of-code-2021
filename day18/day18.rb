@@ -7,12 +7,6 @@ class Node
     @children = []
   end
 
-  def children=(value)
-    raise TypeError unless value.is_a?(Array)
-    raise value "cannot have both value and children" if self.value
-    @children = value
-  end
-
   def root_node
     parent&.root_node || self
   end
@@ -72,6 +66,9 @@ class Node
   end
 
   def validate
+    raise if value && !value.is_a?(Integer)
+    raise if value && children.any?
+    raise if value.nil? && children.empty?
     if parent
       raise "parent's children doesn't include this node (#{to_array.inspect})" unless parent.children.include?(self)
     end
