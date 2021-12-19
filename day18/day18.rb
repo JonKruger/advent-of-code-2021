@@ -1,26 +1,48 @@
+class Element
+  attr_reader :value
+  def initialize(value)
+    raise TypeError unless value.is_a?(Integer)
+    @value = value
+  end
+end
+
+def to_element(item)
+  item.is_a?(Integer) ? Element.new(item) : item.map { |sub_item| to_element(sub_item) }
+end
+
+def to_values(item)
+  item.is_a?(Element) ? item.value : item.map { |sub_item| to_values(sub_item) }
+end
+
 def explodes?(item, depth)
   item.is_a?(Array) && depth >= 4
 end
 
 def reduce(array, depth = 0)
-  array.each_with_index do |item, i|
-    if explodes?(item, depth + 1)
-      left_item = i == 1 ? array[0] : nil
-      right_item = i == 0 ? array[1] : nil
-      raise if left_item && right_item
-      # puts([i, array, left_item, right_item].inspect)
+  element_array = to_element(array)
+  reduced = reduce_level(element_array, depth, element_array.flatten)
+  to_values(reduced)
+end
 
-      array = [left_item + item[0], 0] if left_item
-      array = [0, right_item + item[1]] if right_item
+def reduce_level(element_array, depth, flattened_array)
+  element_array.each_with_index do |item, i|
+    if explodes?(item, depth + 1)
+      # puts("boom", item.inspect, "x", flattened_array.inspect)
+      left_item = flattened_array.index(item[0]) > 0 ? flattened_array[flattened_array.index(item[0]) - 1] : nil
+      right_item = flattened_array.index(item[1]) < flattened_array.size - 1 ? flattened_array[flattened_array.index(item[1]) + 1] : nil
+      element_array = [
+        left_item ? Element.new(item[0].value + left_item.value) : Element.new(0),
+        right_item ? Element.new(item[1].value + right_item.value) : Element.new(0)
+      ]
     elsif item.is_a?(Array)
-      array[i] = reduce(item, depth + 1)
+      element_array[i] = reduce_level(item, depth + 1, flattened_array)
     end
   end
-  array
+  element_array
 end
 
 
-# # 1st item explodes
+# 1st item explodes
 result = reduce([[1,2],7], 3)
 raise result.inspect unless result == [0,9]
 
