@@ -5,6 +5,8 @@ class Cuboid
     @x_range = x_range.to_a
     @y_range = y_range.to_a
     @z_range = z_range.to_a
+
+    raise "missing range: #{to_s}" if @x_range.empty? || @y_range.empty? || @z_range.empty?
   end
 
   def cubes
@@ -40,6 +42,7 @@ class Cuboid
   end
 
   def split_at(x: nil, y: nil, z: nil)
+    # puts("splitting #{self} at [#{x},#{y},#{z}]")
     cuboids = [self]
     if x
       cuboids = cuboids.flat_map { |c| c.split(x_range, x).map { |x_range| Cuboid.new(x_range, c.y_range, c.z_range) } }
@@ -50,6 +53,7 @@ class Cuboid
     if z
       cuboids = cuboids.flat_map { |c| c.split(z_range, z).map { |z_range| Cuboid.new(c.x_range, c.y_range, z_range) } }
     end
+    # puts("now we have #{cuboids}")
     cuboids
   end
 
@@ -69,11 +73,40 @@ class Cuboid
     x_range.include?(x) && y_range.include?(y) && z_range.include?(z)
   end
 
+  def split_if_bisected(other)
+    raise if other.nil?
+    raise TypeError unless other.is_a?(Cuboid)
+
+    if x_min < other.x_min && x_max > other.x_min
+      return split_at(x: other.x_min).map { |c| c.split_if_bisected(other) }.flatten
+    end
+    if x_min < other.x_max && x_max > other.x_max
+      return split_at(x: other.x_max + 1).map { |c| c.split_if_bisected(other) }.flatten
+    end
+
+    if y_min < other.y_min && y_max > other.y_min
+      return split_at(y: other.y_min).map { |c| c.split_if_bisected(other) }.flatten
+    end
+    if y_min < other.y_max && y_max > other.y_max
+      return split_at(y: other.y_max + 1).map { |c| c.split_if_bisected(other) }.flatten
+    end
+
+    if z_min < other.z_min && z_max > other.z_min
+      return split_at(z: other.z_min).map { |c| c.split_if_bisected(other) }.flatten
+    end
+    if z_min < other.z_max && z_max > other.z_max
+      return split_at(z: other.z_max + 1).map { |c| c.split_if_bisected(other) }.flatten
+    end
+
+    # puts("returning self #{self.to_s}")
+    [self]
+  end
 end
 
 class Group
   def initialize(cuboids)
     @cuboids = cuboids
+    split_overlapping_cuboids
   end
 
   def cuboids
@@ -81,65 +114,32 @@ class Group
   end
 
   def <<(new_cuboid)
-    new_cuboids = [new_cuboid]
+    # split cuboids when the edge of another cuboid bisects it
+    @cuboids << new_cuboid
+    split_overlapping_cuboids
+  end
 
-    @cuboids = @cuboids.flat_map do |cuboid|
-      results = new_cuboids.map do |new_cuboid|
-        raise TypeError unless new_cuboid.is_a?(Cuboid)
-        intersection = cuboid.x_range.intersection(new_cuboid.x_range)
-        existing_split_cuboids = []
-        new_split_cuboids = []
-        if intersection.any?
-          existing_split_cuboids << Cuboid.new(cuboid.x_range - intersection, cuboid.y_range, cuboid.z_range) if (cuboid.x_range - intersection).any?
-          existing_split_cuboids << Cuboid.new(intersection, cuboid.y_range, cuboid.z_range)
-          new_split_cuboids << Cuboid.new(intersection, new_cuboid.y_range, new_cuboid.z_range) unless new_cuboid.y_range == cuboid.y_range && new_cuboid.z_range == cuboid.z_range
-          new_split_cuboids << Cuboid.new(new_cuboid.x_range - intersection, new_cuboid.y_range, new_cuboid.z_range) if (new_cuboid.x_range - intersection).any?
-        else
-          existing_split_cuboids << cuboid
-          new_split_cuboids << new_cuboid
+  def split_overlapping_cuboids
+    # puts("split_overlapping_cuboids (#{@cuboids.size})")
+    @cuboids.each do |cuboid1|
+      @cuboids.each do |cuboid2|
+        next if cuboid1 == cuboid2
+        # puts("checking #{cuboid1} vs #{cuboid2}")
+        split_cuboids = cuboid1.split_if_bisected(cuboid2)
+        if split_cuboids.size > 1
+          # puts("split_cuboids: #{split_cuboids.map(&:to_s)}")
+          @cuboids = @cuboids - [cuboid1] + split_cuboids
+          remove_duplicates
+          # puts "splitting again (#{cuboids.size})"
+          return split_overlapping_cuboids
         end
-        [existing_split_cuboids, new_split_cuboids]
       end
-      existing_split_cuboids = results.map { |r| r[0] }.flatten
-      new_cuboids = results.map { |r| r[1] }.flatten
-      existing_split_cuboids
-    end.flatten
-    puts("after x, #{to_s}, new cuboids are #{new_cuboids.inspect}", to_s)
-    puts(print_grid)
-
-    @cuboids = @cuboids.flat_map do |cuboid|
-      raise TypeError unless cuboid.is_a?(Cuboid)
-      results = new_cuboids.map do |new_cuboid|
-        raise TypeError unless new_cuboid.is_a?(Cuboid)
-        puts("processing #{new_cuboid}")
-        intersection = cuboid.y_range.intersection(new_cuboid.y_range) if cuboid.x_range.intersection(new_cuboid.x_range).any?
-        existing_split_cuboids = []
-        new_split_cuboids = []
-        if intersection&.any?
-          puts("splitting #{cuboid.to_s} for #{new_cuboid.to_s}- #{intersection}")
-          existing_split_cuboids << Cuboid.new(cuboid.x_range, cuboid.y_range - intersection, cuboid.z_range) if (cuboid.y_range - intersection).any?
-          existing_split_cuboids << Cuboid.new(cuboid.x_range, intersection, cuboid.z_range)
-          new_split_cuboids << Cuboid.new(new_cuboid.x_range, intersection, new_cuboid.z_range) unless new_cuboid.x_range == cuboid.x_range && new_cuboid.z_range == cuboid.z_range
-          new_split_cuboids << Cuboid.new(new_cuboid.x_range, new_cuboid.y_range - intersection, new_cuboid.z_range) if (new_cuboid.y_range - intersection).any?
-        else
-          existing_split_cuboids << cuboid
-          new_split_cuboids << new_cuboid
-        end
-        [existing_split_cuboids, new_split_cuboids]
-      end
-      existing_split_cuboids = results.map { |r| r[0] }.flatten
-      new_cuboids = results.map { |r| r[1] }.flatten
-      existing_split_cuboids
-    end.flatten
-    puts("after y, #{to_s}, new cuboids are #{new_cuboids.inspect}", to_s)
-
-    @cuboids += new_cuboids
-    remove_duplicates
-
-    @cuboids
+    end
+    nil
   end
 
   def remove_duplicates
+    # puts("removing duplicates")
     result = []
     coordinate_list = []
     cuboids.each do |cuboid|
@@ -149,6 +149,7 @@ class Group
       coordinate_list << coordinates
     end
     @cuboids = result
+    # puts("we have #{@cuboids.size}")
   end
 
   def cubes
@@ -171,7 +172,7 @@ class Group
       (x_min..x_max).map do |x|
         matches = @cuboids.select { |c| c.include?(x, y, c.z_range.min) }
         if matches.any?
-          # raise if matches.size > 1
+          raise if matches.size > 1
           index = @cuboids.index(matches[0])
           index.to_s
         else
@@ -183,15 +184,32 @@ class Group
   end
 end
 
-cuboid = Cuboid.new(10..12, 10..12, 10..10)
-# raise cuboid.cubes.size.inspect unless cuboid.cubes.size == 27
-
-cuboid2 = Cuboid.new(11..13,11..13,10..10)
-group = Group.new([cuboid, cuboid2])
-# raise group.cubes.size.inspect unless group.cubes.size == 27 + 19
-
-group = Group.new([cuboid])
-group << cuboid2
-puts(group.print_grid)
+# splitting x only
+cuboid1 = Cuboid.new(10..12, 10..10, 10..10)
+cuboid2 = Cuboid.new(11..13, 10..10, 10..10)
+group = Group.new([cuboid1, cuboid2])
 puts(group.to_s)
-puts(group.cubes.size)
+puts(group.print_grid)
+raise group.cuboids.size.inspect unless group.cuboids.size == 3
+raise group.cubes.size.inspect unless group.cubes.size == 4
+
+# splitting x and y
+
+cuboid1 = Cuboid.new(10..12, 10..12, 10..10)
+cuboid2 = Cuboid.new(11..13,11..13,10..10)
+group = Group.new([cuboid1, cuboid2])
+puts(group.to_s)
+puts(group.print_grid)
+raise group.cubes.size.inspect unless group.cubes.size == 14
+
+
+cuboid1 = Cuboid.new(10..12, 10..12, 10..12)
+cuboid2 = Cuboid.new(11..13,11..13,11..13)
+group = Group.new([cuboid1, cuboid2])
+raise group.cubes.size.inspect unless group.cubes.size == 46
+#
+# group = Group.new([cuboid])
+# group << cuboid2
+# puts(group.print_grid)
+# puts(group.to_s)
+# puts(group.cubes.size)
