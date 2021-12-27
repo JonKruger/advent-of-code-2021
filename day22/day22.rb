@@ -2,11 +2,23 @@ class Cuboid
   attr_reader :x_range, :y_range, :z_range
 
   def initialize(x_range, y_range, z_range)
-    @x_range = x_range.to_a
-    @y_range = y_range.to_a
-    @z_range = z_range.to_a
+    @x_range = Cuboid.limit_range(x_range).to_a
+    @y_range = Cuboid.limit_range(y_range).to_a
+    @z_range = Cuboid.limit_range(z_range).to_a
 
     raise "missing range: #{to_s}" if @x_range.empty? || @y_range.empty? || @z_range.empty?
+  end
+
+  def self.limit_range(range)
+    if range.min < -50
+      range = -50..range.max
+    end
+
+    if range.max > 50
+      range = range.min..50
+    end
+
+    range
   end
 
   def cubes
@@ -85,24 +97,24 @@ class Cuboid
     raise if other.nil?
     raise TypeError unless other.is_a?(Cuboid)
 
-    if x_min < other.x_min && x_max > other.x_min
+    if x_min < other.x_min && x_max >= other.x_min
       return split_at(x: other.x_min).map { |c| c.split_if_bisected(other) }.flatten
     end
-    if x_min < other.x_max && x_max > other.x_max
+    if x_min <= other.x_max && x_max > other.x_max
       return split_at(x: other.x_max + 1).map { |c| c.split_if_bisected(other) }.flatten
     end
 
-    if y_min < other.y_min && y_max > other.y_min
+    if y_min < other.y_min && y_max >= other.y_min
       return split_at(y: other.y_min).map { |c| c.split_if_bisected(other) }.flatten
     end
-    if y_min < other.y_max && y_max > other.y_max
+    if y_min <= other.y_max && y_max > other.y_max
       return split_at(y: other.y_max + 1).map { |c| c.split_if_bisected(other) }.flatten
     end
 
-    if z_min < other.z_min && z_max > other.z_min
+    if z_min < other.z_min && z_max >= other.z_min
       return split_at(z: other.z_min).map { |c| c.split_if_bisected(other) }.flatten
     end
-    if z_min < other.z_max && z_max > other.z_max
+    if z_min <= other.z_max && z_max > other.z_max
       return split_at(z: other.z_max + 1).map { |c| c.split_if_bisected(other) }.flatten
     end
 
@@ -123,7 +135,7 @@ class Group
 
   def process_input(input)
     input.split("\n").each do |line|
-      match = /^([^\s]+)\sx=(\d+)..(\d+),y=(\d+)..(\d+),z=(\d+)..(\d+)$/.match(line)
+      match = /^([^\s]+)\sx=(-?\d+)..(-?\d+),y=(-?\d+)..(-?\d+),z=(-?\d+)..(-?\d+)$/.match(line)
       if match
         x_min = match[2].to_i
         x_max = match[3].to_i
@@ -132,6 +144,7 @@ class Group
         z_min = match[6].to_i
         z_max = match[7].to_i
 
+        puts("processing #{line}")
         if match[1] == "on"
           turn_on(Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max))
         elsif match[1] == "off"
@@ -160,7 +173,7 @@ class Group
     @cuboids = @cuboids - cuboids_to_remove
   end
 
-  def split_overlapping_cuboids
+  def split_overlapping_cuboids(recursion_level = 0)
     # puts("split_overlapping_cuboids (#{@cuboids.size})")
     @cuboids.each do |cuboid1|
       @cuboids.each do |cuboid2|
@@ -171,8 +184,8 @@ class Group
           # puts("split_cuboids: #{split_cuboids.map(&:to_s)}")
           @cuboids = @cuboids - [cuboid1] + split_cuboids
           remove_duplicates
-          # puts "splitting again (#{cuboids.size})"
-          return split_overlapping_cuboids
+          puts "splitting again (size = #{cuboids.size}, recursion_level = #{recursion_level})"
+          return split_overlapping_cuboids(recursion_level + 1)
         end
       end
     end
@@ -197,6 +210,10 @@ class Group
     @cuboids.flat_map(&:cubes)
   end
 
+  def size
+    @cuboids.map(&:size).sum
+  end
+
   def to_s
     @cuboids.map { |c| c.to_s }.join("\n")
   end
@@ -213,9 +230,9 @@ class Group
       (x_min..x_max).map do |x|
         matches = @cuboids.select { |c| c.include?(x, y, c.z_range.min) }
         if matches.any?
-          raise if matches.size > 1
+          raise matches.inspect if matches.size > 1
           index = @cuboids.index(matches[0])
-          index.to_s
+          (65 + index).chr # 0 = A, 1 = B, etc.
         else
           " "
         end
@@ -225,7 +242,7 @@ class Group
   end
 end
 
-# splitting x only
+# splitting x only - case 1
 cuboid1 = Cuboid.new(10..12, 10..10, 10..10)
 cuboid2 = Cuboid.new(11..13, 10..10, 10..10)
 group = Group.new([cuboid1, cuboid2])
@@ -233,6 +250,24 @@ group = Group.new([cuboid1, cuboid2])
 # puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 3
 raise group.cubes.size.inspect unless group.cubes.size == 4
+
+# splitting x only - case 2
+cuboid1 = Cuboid.new(10..10, 10..10, 10..10)
+cuboid2 = Cuboid.new(10..11, 10..10, 10..10)
+group = Group.new([cuboid1, cuboid2])
+# puts(group.to_s)
+puts(group.print_grid)
+raise group.cuboids.size.inspect unless group.cuboids.size == 2
+raise group.cubes.size.inspect unless group.cubes.size == 2
+
+# splitting x only - case 3
+cuboid1 = Cuboid.new(10..10, 10..10, 10..10)
+cuboid2 = Cuboid.new(9..10, 10..10, 10..10)
+group = Group.new([cuboid1, cuboid2])
+# puts(group.to_s)
+puts(group.print_grid)
+raise group.cuboids.size.inspect unless group.cuboids.size == 2
+raise group.cubes.size.inspect unless group.cubes.size == 2
 
 # splitting x and y
 cuboid1 = Cuboid.new(10..12, 10..12, 10..10)
@@ -261,8 +296,6 @@ raise group.cubes.size.inspect unless group.cubes.size == 4
 cuboid1 = Cuboid.new(10..13, 10..12, 10..10)
 cuboid2 = Cuboid.new(11..12, 11..13, 10..10)
 group = Group.new([cuboid1, cuboid2])
-# puts(group.to_s)
-# puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 7
 raise group.cubes.size.inspect unless group.cubes.size == 14
 
@@ -272,8 +305,6 @@ cuboid_off = Cuboid.new(11..12, 10..10, 10..10)
 group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
-# puts(group.to_s)
-# puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 2
 raise group.cubes.size.inspect unless group.cubes.size == 2
 
@@ -283,33 +314,102 @@ cuboid_off = Cuboid.new(9..11, 10..10, 10..10)
 group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
-# puts(group.to_s)
-puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 1
 raise group.cubes.size.inspect unless group.cubes.size == 2
 
+# turn off - test 3
+cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
+cuboid_off = Cuboid.new(11..13, 10..10, 10..10)
+group = Group.new()
+group.turn_on(cuboid_on)
+group.turn_off(cuboid_off)
+raise group.cuboids.size.inspect unless group.cuboids.size == 1
+raise group.cubes.size.inspect unless group.cubes.size == 1
+
+# turn off - test 4
+cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
+cuboid_off = Cuboid.new(10..13, 10..10, 10..10)
+group = Group.new()
+group.turn_on(cuboid_on)
+group.turn_off(cuboid_off)
+raise group.cuboids.size.inspect unless group.cuboids.size == 0
+raise group.cubes.size.inspect unless group.cubes.size == 0
+
+# turn off - test 5
+cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
+cuboid_off = Cuboid.new(11..14, 10..10, 10..10)
+group = Group.new()
+group.turn_on(cuboid_on)
+group.turn_off(cuboid_off)
+raise group.cuboids.size.inspect unless group.cuboids.size == 1
+raise group.cubes.size.inspect unless group.cubes.size == 1
+
+# turn off - test 6
+cuboid_on = Cuboid.new(10..12, 10..12, 10..10)
+cuboid_off = Cuboid.new(11..13, 11..13, 10..10)
+group = Group.new()
+group.turn_on(cuboid_on)
+group.turn_off(cuboid_off)
+raise group.cuboids.size.inspect unless group.cuboids.size == 3
+raise group.cubes.size.inspect unless group.cubes.size == 5
+
+# example from requirements - x & y
+group = Group.new()
+group.process_input("on x=10..12,y=10..12,z=10..10")
+puts(group.print_grid)
+raise group.cubes.size.inspect unless group.cubes.size == 9
+group.process_input("on x=11..13,y=11..13,z=10..10")
+puts(group.print_grid)
+raise group.cubes.size.inspect unless group.cubes.size == 14
+cubes = group.cubes
+group.process_input("off x=9..11,y=9..11,z=10..10")
+puts(group.print_grid)
+raise group.cubes.size.inspect unless group.cubes.size == 10
+group.process_input("on x=10..10,y=10..10,z=10..10")
+puts(group.print_grid)
+raise group.cubes.size.inspect unless group.cubes.size == 11
+
 # example from requirements
 group = Group.new()
-input = <<-INPUT
-on x=10..12,y=10..12,z=10..12
-on x=11..13,y=11..13,z=11..13
-off x=9..11,y=9..11,z=9..11
-on x=10..10,y=10..10,z=10..10
-INPUT
 group.process_input("on x=10..12,y=10..12,z=10..12")
-cubes = group.cubes
 raise group.cubes.size.inspect unless group.cubes.size == 27
 group.process_input("on x=11..13,y=11..13,z=11..13")
-# puts(group.to_s)
-pp((group.cubes - cubes).sort)
-cubes = group.cubes
 raise group.cubes.size.inspect unless group.cubes.size == 27 + 19
 group.process_input("off x=9..11,y=9..11,z=9..11")
-puts(group.to_s)
-pp((cubes - group.cubes).sort)
 raise group.cubes.size.inspect unless group.cubes.size == 27 + 19 - 8
 group.process_input("on x=10..10,y=10..10,z=10..10")
 raise group.cubes.size.inspect unless group.cubes.size == 27 + 19 - 8 + 1
 
-puts(group.to_s)
-raise group.cubes.size.inspect unless group.cubes.size == 39
+# ignore coordinates < -50 or > 50
+group = Group.new()
+group.process_input("on x=-541..392,y=-850..492,z=-274..787")
+raise group.size.inspect unless group.size == 101**3
+
+# larger example from requirements
+input = <<-INPUT
+on x=-20..26,y=-36..17,z=-47..7
+on x=-20..33,y=-21..23,z=-26..28
+on x=-22..28,y=-29..23,z=-38..16
+on x=-46..7,y=-6..46,z=-50..-1
+on x=-49..1,y=-3..46,z=-24..28
+on x=2..47,y=-22..22,z=-23..27
+on x=-27..23,y=-28..26,z=-21..29
+on x=-39..5,y=-6..47,z=-3..44
+on x=-30..21,y=-8..43,z=-13..34
+on x=-22..26,y=-27..20,z=-29..19
+off x=-48..-32,y=26..41,z=-47..-37
+on x=-12..35,y=6..50,z=-50..-2
+off x=-48..-32,y=-32..-16,z=-15..-5
+on x=-18..26,y=-33..15,z=-7..46
+off x=-40..-22,y=-38..-28,z=23..41
+on x=-16..35,y=-41..10,z=-47..6
+off x=-32..-23,y=11..30,z=-14..3
+on x=-49..-5,y=-3..45,z=-29..18
+off x=18..30,y=-20..-8,z=-3..13
+on x=-41..9,y=-7..43,z=-33..15
+on x=-54112..-39298,y=-85059..-49293,z=-27449..7877
+on x=967..23432,y=45373..81175,z=27513..53682
+INPUT
+group = Group.new()
+group.process_input(input)
+raise group.size.inspect unless group.size == 590784
