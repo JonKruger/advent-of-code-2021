@@ -5,20 +5,22 @@ class Cuboid
     @x_range = Cuboid.limit_range(x_range)
     @y_range = Cuboid.limit_range(y_range)
     @z_range = Cuboid.limit_range(z_range)
-
-    raise "missing range: #{to_s}" if @x_range.min > @x_range.max || @y_range.min > @y_range.max || @z_range.min > @z_range.max
   end
 
   def self.limit_range(range)
-    if range.min < -50
+    if range.min && range.min < -50
       range = -50..range.max
     end
 
-    if range.max > 50
+    if range.max && range.max > 50
       range = range.min..50
     end
 
     range
+  end
+
+  def valid?
+    @x_range.max && @y_range.max && @z_range.max
   end
 
   def size
@@ -79,6 +81,16 @@ class Cuboid
 
   def include?(x, y, z)
     x_range.include?(x) && y_range.include?(y) && z_range.include?(z)
+  end
+
+  def overlaps?(other)
+    ranges_overlap?(x_range, other.x_range) &&
+      ranges_overlap?(y_range, other.y_range) &&
+      ranges_overlap?(z_range, other.z_range)
+  end
+
+  def ranges_overlap?(range_a, range_b)
+    range_b.begin <= range_a.end && range_a.begin <= range_b.end
   end
 
   def in_range?(x_range, y_range, z_range)
@@ -143,10 +155,14 @@ class Group
         z_max = match[7].to_i
 
         puts("processing #{line}")
+        cuboid = Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max)
+        if !cuboid.valid?
+          puts("skipping #{line} because range is invalid")
+        end
         if match[1] == "on"
-          turn_on(Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max))
+          turn_on(cuboid)
         elsif match[1] == "off"
-          turn_off(Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max))
+          turn_off(cuboid)
         end
       end
     end
@@ -171,19 +187,35 @@ class Group
     @cuboids = @cuboids - cuboids_to_remove
   end
 
-  def split_overlapping_cuboids(recursion_level = 0)
-    @cuboids.each do |cuboid1|
-      @cuboids.each do |cuboid2|
-        next if cuboid1 == cuboid2
-        split_cuboids = cuboid1.split_if_bisected(cuboid2)
-        if split_cuboids.size > 1
-          @cuboids = @cuboids - [cuboid1] + split_cuboids
-          puts "splitting again (size = #{cuboids.size}, recursion_level = #{recursion_level})"
-          return split_overlapping_cuboids(recursion_level + 1)
-        end
+  def split_overlapping_cuboids(pairs = [], recursion_level = 0)
+    if pairs.empty?
+      pairs = overlapping_cuboids(@cuboids, @cuboids)
+    end
+
+    while (pairs.any?) do
+      cuboid1, cuboid2 = pairs.shift
+      next if cuboid1 == cuboid2
+      split_cuboids = cuboid1.split_if_bisected(cuboid2)
+      if split_cuboids.size > 1
+        @cuboids = @cuboids - [cuboid1] + split_cuboids
+        pairs = pairs.select { |pair| !pair.include?(cuboid1) }
+        pairs += overlapping_cuboids(@cuboids, split_cuboids)
+        pairs += overlapping_cuboids(split_cuboids, @cuboids)
+        # puts "splitting again (size = #{cuboids.size}, recursion_level = #{recursion_level})"
+        return split_overlapping_cuboids(pairs, recursion_level + 1)
       end
     end
     nil
+  end
+
+  def overlapping_cuboids(list1, list2)
+    pairs = []
+    list1.each do |cuboid1|
+      list2.each do |cuboid2|
+        pairs << [cuboid1, cuboid2] if cuboid1.overlaps?(cuboid2)
+      end
+    end
+    pairs
   end
 
   def remove_duplicates
