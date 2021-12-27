@@ -1,18 +1,20 @@
 class Cuboid
-  attr_reader :x_range, :y_range, :z_range
+  attr_reader :x_range, :y_range, :z_range, :range_min, :range_max
 
-  def initialize(x_range, y_range, z_range)
-    @x_range = Cuboid.limit_range(x_range)
-    @y_range = Cuboid.limit_range(y_range)
-    @z_range = Cuboid.limit_range(z_range)
+  def initialize(x_range, y_range, z_range, range_min = nil, range_max = nil)
+    @range_min = range_min&.freeze
+    @range_max = range_max&.freeze
+    @x_range = Cuboid.limit_range(x_range, range_min, range_max).freeze
+    @y_range = Cuboid.limit_range(y_range, range_min, range_max).freeze
+    @z_range = Cuboid.limit_range(z_range, range_min, range_max).freeze
   end
 
-  def self.limit_range(range)
-    if range.min && range.min < -50
+  def self.limit_range(range, range_min, range_max)
+    if range_min && range.min && range.min < -50
       range = -50..range.max
     end
 
-    if range.max && range.max > 50
+    if range_max && range.max && range.max > 50
       range = range.min..50
     end
 
@@ -51,19 +53,21 @@ class Cuboid
     @z_range.max
   end
 
+  def coordinates
+    @coordinates ||= [x_min, x_max, y_min, y_max, z_min, z_max]
+  end
+
   def split_at(x: nil, y: nil, z: nil)
-    # puts("splitting #{self} at [#{x},#{y},#{z}]")
     cuboids = [self]
     if x
-      cuboids = cuboids.flat_map { |c| c.split(x_range, x).map { |x_range| Cuboid.new(x_range, c.y_range, c.z_range) } }
+      cuboids = cuboids.flat_map { |c| c.split(x_range, x).map { |x_range| Cuboid.new(x_range, c.y_range, c.z_range, c.range_min, c.range_max) } }
     end
     if y
-      cuboids = cuboids.flat_map { |c| c.split(y_range, y).map { |y_range| Cuboid.new(c.x_range, y_range, c.z_range) } }
+      cuboids = cuboids.flat_map { |c| c.split(y_range, y).map { |y_range| Cuboid.new(c.x_range, y_range, c.z_range, c.range_min, c.range_max) } }
     end
     if z
-      cuboids = cuboids.flat_map { |c| c.split(z_range, z).map { |z_range| Cuboid.new(c.x_range, c.y_range, z_range) } }
+      cuboids = cuboids.flat_map { |c| c.split(z_range, z).map { |z_range| Cuboid.new(c.x_range, c.y_range, z_range, c.range_min, c.range_max) } }
     end
-    # puts("now we have #{cuboids}")
     cuboids
   end
 
@@ -127,15 +131,18 @@ class Cuboid
       return split_at(z: other.z_max + 1).map { |c| c.split_if_bisected(other) }.flatten
     end
 
-    # puts("returning self #{self.to_s}")
     [self]
   end
 end
 
 class Group
-  def initialize(cuboids = [])
+  attr_reader :range_min, :range_max
+
+  def initialize(cuboids = [], range_min: nil, range_max: nil)
     @cuboids = cuboids
-    split_overlapping_cuboids
+    @range_min = range_min&.freeze
+    @range_max = range_max&.freeze
+    split_overlapping_cuboids(@cuboids)
     remove_duplicates
   end
 
@@ -154,11 +161,12 @@ class Group
         z_min = match[6].to_i
         z_max = match[7].to_i
 
-        puts("processing #{line}")
-        cuboid = Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max)
+        cuboid = Cuboid.new(x_min..x_max, y_min..y_max, z_min..z_max, range_min, range_max)
         if !cuboid.valid?
           puts("skipping #{line} because range is invalid")
+          return
         end
+
         if match[1] == "on"
           turn_on(cuboid)
         elsif match[1] == "off"
@@ -171,25 +179,26 @@ class Group
   def turn_on(new_cuboid)
     puts("turning on #{new_cuboid.to_s}")
     @cuboids << new_cuboid
-    split_overlapping_cuboids
+    split_overlapping_cuboids([new_cuboid])
     remove_duplicates
+    nil
   end
 
   def turn_off(cuboid)
     puts("turning off #{cuboid.to_s}")
     @cuboids << cuboid
-    split_overlapping_cuboids
+    split_overlapping_cuboids([cuboid])
     remove_duplicates
 
     # delete all cuboids in the range of the cuboid passed in
     cuboids_to_remove = @cuboids.select { |c| c.in_range?(cuboid.x_range, cuboid.y_range, cuboid.z_range) }
-    puts("removing #{cuboids_to_remove.map(&:to_s)}")
     @cuboids = @cuboids - cuboids_to_remove
+    nil
   end
 
-  def split_overlapping_cuboids(pairs = [], recursion_level = 0)
+  def split_overlapping_cuboids(new_cuboids, pairs = [], recursion_level = 0)
     if pairs.empty?
-      pairs = overlapping_cuboids(@cuboids, @cuboids)
+      pairs = overlapping_cuboids(@cuboids, new_cuboids)
     end
 
     while (pairs.any?) do
@@ -197,39 +206,27 @@ class Group
       next if cuboid1 == cuboid2
       split_cuboids = cuboid1.split_if_bisected(cuboid2)
       if split_cuboids.size > 1
+        new_cuboids = new_cuboids + split_cuboids
         @cuboids = @cuboids - [cuboid1] + split_cuboids
         pairs = pairs.select { |pair| !pair.include?(cuboid1) }
-        pairs += overlapping_cuboids(@cuboids, split_cuboids)
-        pairs += overlapping_cuboids(split_cuboids, @cuboids)
-        # puts "splitting again (size = #{cuboids.size}, recursion_level = #{recursion_level})"
-        return split_overlapping_cuboids(pairs, recursion_level + 1)
+        overlapping_pairs = overlapping_cuboids(@cuboids, split_cuboids)
+        pairs += (overlapping_pairs + overlapping_pairs.map(&:reverse))
+        puts "splitting again (cuboids = #{cuboids.size}, recursion_level = #{recursion_level}, pairs = #{pairs.size})"
+        return pairs.any? ? split_overlapping_cuboids(new_cuboids, pairs, recursion_level + 1) : nil
       end
     end
     nil
   end
 
   def overlapping_cuboids(list1, list2)
-    pairs = []
-    list1.each do |cuboid1|
-      list2.each do |cuboid2|
-        pairs << [cuboid1, cuboid2] if cuboid1.overlaps?(cuboid2)
-      end
-    end
-    pairs
+    list1.product(list2).select { |cuboid1, cuboid2| cuboid1 != cuboid2 && cuboid1.overlaps?(cuboid2) }
   end
 
   def remove_duplicates
-    # puts("removing duplicates")
-    result = []
-    coordinate_list = []
-    cuboids.each do |cuboid|
-      coordinates = [cuboid.x_min, cuboid.x_max, cuboid.y_min, cuboid.y_max, cuboid.z_min, cuboid.z_max]
-      next if coordinate_list.include?(coordinates)
-      result << cuboid
-      coordinate_list << coordinates
-    end
-    @cuboids = result
-    # puts("we have #{@cuboids.size}")
+    # start = Time.now
+    @cuboids = cuboids.map { |c| [c.coordinates, c] }.to_h.values
+    # puts("remove_duplicates took #{Time.now - start} seconds")
+    nil
   end
 
   def size
@@ -237,7 +234,7 @@ class Group
   end
 
   def to_s
-    @cuboids.map { |c| c.to_s }.join("\n")
+    @cuboids.map(&:to_s).join("\n")
   end
 
   def print_grid
@@ -375,7 +372,7 @@ group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 3
 raise group.size.inspect unless group.size == 5
 
-# example from requirements - x & y
+# example from requirements - x & y only
 group = Group.new()
 group.process_input("on x=10..12,y=10..12,z=10..10")
 puts(group.print_grid)
@@ -402,7 +399,7 @@ group.process_input("on x=10..10,y=10..10,z=10..10")
 raise group.size.inspect unless group.size == 27 + 19 - 8 + 1
 
 # ignore coordinates < -50 or > 50
-group = Group.new()
+group = Group.new(range_min: -50, range_max: 50)
 group.process_input("on x=-541..392,y=-850..492,z=-274..787")
 raise group.size.inspect unless group.size == 101**3
 
@@ -431,6 +428,22 @@ on x=-41..9,y=-7..43,z=-33..15
 on x=-54112..-39298,y=-85059..-49293,z=-27449..7877
 on x=967..23432,y=45373..81175,z=27513..53682
 INPUT
-group = Group.new()
+group = Group.new(range_min: -50, range_max: 50)
 group.process_input(input)
 raise group.size.inspect unless group.size == 590784
+
+puts("************* PART 1 *************")
+start = Time.now
+input = File.read("input.txt")
+group = Group.new(range_min: -50, range_max: 50)
+group.process_input(input)
+puts("part 1 - #{group.size}")
+puts("finished in #{Time.now - start} seconds")
+
+puts("************* PART 2 *************")
+start = Time.now
+input = File.read("input.txt")
+group = Group.new
+group.process_input(input)
+puts("part 2 - #{group.size}")
+puts("finished in #{Time.now - start} seconds")
