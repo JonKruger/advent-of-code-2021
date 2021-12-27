@@ -2,11 +2,11 @@ class Cuboid
   attr_reader :x_range, :y_range, :z_range
 
   def initialize(x_range, y_range, z_range)
-    @x_range = Cuboid.limit_range(x_range).to_a
-    @y_range = Cuboid.limit_range(y_range).to_a
-    @z_range = Cuboid.limit_range(z_range).to_a
+    @x_range = Cuboid.limit_range(x_range)
+    @y_range = Cuboid.limit_range(y_range)
+    @z_range = Cuboid.limit_range(z_range)
 
-    raise "missing range: #{to_s}" if @x_range.empty? || @y_range.empty? || @z_range.empty?
+    raise "missing range: #{to_s}" if @x_range.min > @x_range.max || @y_range.min > @y_range.max || @z_range.min > @z_range.max
   end
 
   def self.limit_range(range)
@@ -19,12 +19,6 @@ class Cuboid
     end
 
     range
-  end
-
-  def cubes
-    # https://gist.github.com/sepastian/6904643
-    ranges = [@x_range, @y_range, @z_range]
-    ranges[0].product(*ranges[1..-1])
   end
 
   def size
@@ -80,7 +74,7 @@ class Cuboid
   end
 
   def to_s
-    "x=#{x_range.min}..#{x_range.max}, y=#{y_range.min}..#{y_range.max}, z=#{z_range.min}..#{z_range.max} (size #{size})"
+    @to_s ||= "x=#{x_range.min}..#{x_range.max}, y=#{y_range.min}..#{y_range.max}, z=#{z_range.min}..#{z_range.max} (size #{size})"
   end
 
   def include?(x, y, z)
@@ -88,9 +82,12 @@ class Cuboid
   end
 
   def in_range?(x_range, y_range, z_range)
-    self.x_range.intersection(x_range) == self.x_range &&
-      self.y_range.intersection(y_range) == self.y_range &&
-      self.z_range.intersection(z_range) == self.z_range
+    self.x_range.min >= x_range.min &&
+      self.x_range.max <= x_range.max &&
+      self.y_range.min >= y_range.min &&
+      self.y_range.max <= y_range.max &&
+      self.z_range.min >= z_range.min &&
+      self.z_range.max <= z_range.max
   end
 
   def split_if_bisected(other)
@@ -127,6 +124,7 @@ class Group
   def initialize(cuboids = [])
     @cuboids = cuboids
     split_overlapping_cuboids
+    remove_duplicates
   end
 
   def cuboids
@@ -174,16 +172,12 @@ class Group
   end
 
   def split_overlapping_cuboids(recursion_level = 0)
-    # puts("split_overlapping_cuboids (#{@cuboids.size})")
     @cuboids.each do |cuboid1|
       @cuboids.each do |cuboid2|
         next if cuboid1 == cuboid2
-        # puts("checking #{cuboid1} vs #{cuboid2}")
         split_cuboids = cuboid1.split_if_bisected(cuboid2)
         if split_cuboids.size > 1
-          # puts("split_cuboids: #{split_cuboids.map(&:to_s)}")
           @cuboids = @cuboids - [cuboid1] + split_cuboids
-          remove_duplicates
           puts "splitting again (size = #{cuboids.size}, recursion_level = #{recursion_level})"
           return split_overlapping_cuboids(recursion_level + 1)
         end
@@ -204,10 +198,6 @@ class Group
     end
     @cuboids = result
     # puts("we have #{@cuboids.size}")
-  end
-
-  def cubes
-    @cuboids.flat_map(&:cubes)
   end
 
   def size
@@ -249,7 +239,7 @@ group = Group.new([cuboid1, cuboid2])
 # puts(group.to_s)
 # puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 3
-raise group.cubes.size.inspect unless group.cubes.size == 4
+raise group.size.inspect unless group.size == 4
 
 # splitting x only - case 2
 cuboid1 = Cuboid.new(10..10, 10..10, 10..10)
@@ -258,7 +248,7 @@ group = Group.new([cuboid1, cuboid2])
 # puts(group.to_s)
 puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 2
-raise group.cubes.size.inspect unless group.cubes.size == 2
+raise group.size.inspect unless group.size == 2
 
 # splitting x only - case 3
 cuboid1 = Cuboid.new(10..10, 10..10, 10..10)
@@ -267,7 +257,7 @@ group = Group.new([cuboid1, cuboid2])
 # puts(group.to_s)
 puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 2
-raise group.cubes.size.inspect unless group.cubes.size == 2
+raise group.size.inspect unless group.size == 2
 
 # splitting x and y
 cuboid1 = Cuboid.new(10..12, 10..12, 10..10)
@@ -275,13 +265,13 @@ cuboid2 = Cuboid.new(11..13, 11..13, 10..10)
 group = Group.new([cuboid1, cuboid2])
 # puts(group.to_s)
 # puts(group.print_grid)
-raise group.cubes.size.inspect unless group.cubes.size == 14
+raise group.size.inspect unless group.size == 14
 
 # splitting x, y, and z
 cuboid1 = Cuboid.new(10..12, 10..12, 10..12)
 cuboid2 = Cuboid.new(11..13, 11..13, 11..13)
 group = Group.new([cuboid1, cuboid2])
-raise group.cubes.size.inspect unless group.cubes.size == 46
+raise group.size.inspect unless group.size == 46
 
 # nested cuboids
 cuboid1 = Cuboid.new(10..13, 10..10, 10..10)
@@ -290,14 +280,14 @@ group = Group.new([cuboid1, cuboid2])
 # puts(group.to_s)
 # puts(group.print_grid)
 raise group.cuboids.size.inspect unless group.cuboids.size == 3
-raise group.cubes.size.inspect unless group.cubes.size == 4
+raise group.size.inspect unless group.size == 4
 
 # nested x, but overlapping y
 cuboid1 = Cuboid.new(10..13, 10..12, 10..10)
 cuboid2 = Cuboid.new(11..12, 11..13, 10..10)
 group = Group.new([cuboid1, cuboid2])
 raise group.cuboids.size.inspect unless group.cuboids.size == 7
-raise group.cubes.size.inspect unless group.cubes.size == 14
+raise group.size.inspect unless group.size == 14
 
 # turn off - test 1
 cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
@@ -306,7 +296,7 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 2
-raise group.cubes.size.inspect unless group.cubes.size == 2
+raise group.size.inspect unless group.size == 2
 
 # turn off - test 2
 cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
@@ -315,7 +305,7 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 1
-raise group.cubes.size.inspect unless group.cubes.size == 2
+raise group.size.inspect unless group.size == 2
 
 # turn off - test 3
 cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
@@ -324,7 +314,7 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 1
-raise group.cubes.size.inspect unless group.cubes.size == 1
+raise group.size.inspect unless group.size == 1
 
 # turn off - test 4
 cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
@@ -333,7 +323,7 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 0
-raise group.cubes.size.inspect unless group.cubes.size == 0
+raise group.size.inspect unless group.size == 0
 
 # turn off - test 5
 cuboid_on = Cuboid.new(10..13, 10..10, 10..10)
@@ -342,7 +332,7 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 1
-raise group.cubes.size.inspect unless group.cubes.size == 1
+raise group.size.inspect unless group.size == 1
 
 # turn off - test 6
 cuboid_on = Cuboid.new(10..12, 10..12, 10..10)
@@ -351,34 +341,33 @@ group = Group.new()
 group.turn_on(cuboid_on)
 group.turn_off(cuboid_off)
 raise group.cuboids.size.inspect unless group.cuboids.size == 3
-raise group.cubes.size.inspect unless group.cubes.size == 5
+raise group.size.inspect unless group.size == 5
 
 # example from requirements - x & y
 group = Group.new()
 group.process_input("on x=10..12,y=10..12,z=10..10")
 puts(group.print_grid)
-raise group.cubes.size.inspect unless group.cubes.size == 9
+raise group.size.inspect unless group.size == 9
 group.process_input("on x=11..13,y=11..13,z=10..10")
 puts(group.print_grid)
-raise group.cubes.size.inspect unless group.cubes.size == 14
-cubes = group.cubes
+raise group.size.inspect unless group.size == 14
 group.process_input("off x=9..11,y=9..11,z=10..10")
 puts(group.print_grid)
-raise group.cubes.size.inspect unless group.cubes.size == 10
+raise group.size.inspect unless group.size == 10
 group.process_input("on x=10..10,y=10..10,z=10..10")
 puts(group.print_grid)
-raise group.cubes.size.inspect unless group.cubes.size == 11
+raise group.size.inspect unless group.size == 11
 
 # example from requirements
 group = Group.new()
 group.process_input("on x=10..12,y=10..12,z=10..12")
-raise group.cubes.size.inspect unless group.cubes.size == 27
+raise group.size.inspect unless group.size == 27
 group.process_input("on x=11..13,y=11..13,z=11..13")
-raise group.cubes.size.inspect unless group.cubes.size == 27 + 19
+raise group.size.inspect unless group.size == 27 + 19
 group.process_input("off x=9..11,y=9..11,z=9..11")
-raise group.cubes.size.inspect unless group.cubes.size == 27 + 19 - 8
+raise group.size.inspect unless group.size == 27 + 19 - 8
 group.process_input("on x=10..10,y=10..10,z=10..10")
-raise group.cubes.size.inspect unless group.cubes.size == 27 + 19 - 8 + 1
+raise group.size.inspect unless group.size == 27 + 19 - 8 + 1
 
 # ignore coordinates < -50 or > 50
 group = Group.new()
